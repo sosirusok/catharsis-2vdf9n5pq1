@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, DEFAULT_THEMES, type BookingSettingsRecord, type ThemeRecord } from "@/lib/models";
+import { isPublicWebOriginAllowed } from "@/lib/request-origin";
 export { DEFAULT_SETTINGS, DEFAULT_THEMES } from "@/lib/models";
 
 export const DEFAULT_TIMES = [630, 720, 810, 900, 990, 1080, 1170, 1260, 1350];
@@ -256,11 +257,5 @@ export function isUniqueError(error: unknown): boolean {
 }
 
 export function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
+  return isPublicWebOriginAllowed(request);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiUrl } from "@/lib/client-runtime";
 import type { ThemeRecord } from "@/lib/models";
 
 function Arrow() {
@@ -16,7 +17,7 @@ export default function DynamicRates({ initialThemes }: { initialThemes: ThemeRe
   const [themeId, setThemeId] = useState(initialThemes[0]?.id || "");
 
   useEffect(() => {
-    fetch("/api/public/bootstrap", { cache: "no-store" })
+    fetch(apiUrl("/api/public/bootstrap"), { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => {
         if (!data.ok || !Array.isArray(data.themes)) return;

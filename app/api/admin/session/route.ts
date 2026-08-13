@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin";
 import { validAdminMutationRequest } from "@/lib/admin-api";
 import { enforceRateLimit, json } from "@/lib/booking";
+import { isAdminPagesOrigin } from "@/lib/request-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +43,14 @@ export async function POST(request: Request) {
       return json({ ok: false, error: { code: "INVALID_ACCESS_KEY", message: "관리자 키를 확인해 주세요." } }, 401);
     }
 
-    const response = json({ ok: true });
-    response.headers.append("Set-Cookie", adminSessionCookie(await createAdminSession()));
+    const pagesRequest = isAdminPagesOrigin(request);
+    const sessionToken = await createAdminSession(pagesRequest ? "github-pages" : "site");
+    const response = json(pagesRequest
+      ? { ok: true, sessionToken, expiresIn: 12 * 60 * 60 }
+      : { ok: true });
+    if (!pagesRequest) {
+      response.headers.append("Set-Cookie", adminSessionCookie(sessionToken));
+    }
     return response;
   } catch {
     return json({ ok: false, error: { code: "SERVICE_ERROR", message: "관리 화면을 열지 못했습니다. 잠시 후 다시 시도해 주세요." } }, 500);

@@ -1,11 +1,10 @@
 import { getAdmin } from "@/lib/admin";
-import AdminAccessGate from "./AdminAccessGate";
-import AdminApp from "./AdminApp";
+import AdminPortal from "./AdminPortal";
 import "./admin.css";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const admin = await getAdmin();
-  return admin ? <AdminApp /> : <AdminAccessGate />;
+  return <AdminPortal initialAuthenticated={Boolean(admin)} />;
 }

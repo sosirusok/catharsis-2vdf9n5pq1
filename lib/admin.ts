@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { runtimeEnv } from "@/lib/booking";
+import { isAdminPagesOrigin } from "@/lib/request-origin";
 
 export type AdminIdentity = { email: string; displayName: string };
 
@@ -70,20 +71,22 @@ export async function adminAccessKeyMatches(candidate: string): Promise<boolean>
   return constantTimeEqual(candidateDigest, expectedDigest);
 }
 
-export async function createAdminSession(now = Date.now()): Promise<string> {
+type AdminSessionAudience = "site" | "github-pages";
+
+export async function createAdminSession(audience: AdminSessionAudience = "site", now = Date.now()): Promise<string> {
   const issuedAt = Math.floor(now / 1000);
   const expiresAt = issuedAt + ADMIN_SESSION_TTL_SECONDS;
   const nonce = base64url(crypto.getRandomValues(new Uint8Array(18)));
-  const payload = `v1.${issuedAt}.${expiresAt}.${nonce}`;
+  const payload = `v2.${audience}.${issuedAt}.${expiresAt}.${nonce}`;
   return `${payload}.${await signSession(payload)}`;
 }
 
-export async function verifyAdminSession(token: string | null, now = Date.now()): Promise<boolean> {
+export async function verifyAdminSession(token: string | null, audience: AdminSessionAudience = "site", now = Date.now()): Promise<boolean> {
   if (!token || token.length > 512) return false;
   const parts = token.split(".");
-  if (parts.length !== 5 || parts.some((part) => !part)) return false;
-  const [version, issuedText, expiresText, nonce, suppliedSignature] = parts;
-  if (version !== "v1" || !/^\d{10}$/.test(issuedText) || !/^\d{10}$/.test(expiresText)) return false;
+  if (parts.length !== 6 || parts.some((part) => !part)) return false;
+  const [version, tokenAudience, issuedText, expiresText, nonce, suppliedSignature] = parts;
+  if (version !== "v2" || tokenAudience !== audience || !/^\d{10}$/.test(issuedText) || !/^\d{10}$/.test(expiresText)) return false;
   if (!/^[A-Za-z0-9_-]{20,40}$/.test(nonce || "") || !/^[A-Za-z0-9_-]{40,60}$/.test(suppliedSignature || "")) return false;
 
   const issuedAt = Number(issuedText);
@@ -93,7 +96,7 @@ export async function verifyAdminSession(token: string | null, now = Date.now())
   if (issuedAt > current + 60 || expiresAt <= current || expiresAt - issuedAt !== ADMIN_SESSION_TTL_SECONDS) return false;
 
   try {
-    const payload = `${version}.${issuedText}.${expiresText}.${nonce}`;
+    const payload = `${version}.${tokenAudience}.${issuedText}.${expiresText}.${nonce}`;
     const expectedSignature = await signSession(payload);
     const [suppliedDigest, expectedDigest] = await Promise.all([
       sha256Bytes(suppliedSignature),
@@ -115,7 +118,15 @@ export function clearAdminSessionCookie(): string {
 
 export async function getAdmin(request?: Request): Promise<AdminIdentity | null> {
   const requestHeaders = request?.headers ?? (await headers());
-  const token = cookieValue(requestHeaders.get("cookie"), ADMIN_SESSION_COOKIE);
-  if (!(await verifyAdminSession(token))) return null;
+  const authorization = requestHeaders.get("authorization");
+  const pagesRequest = Boolean(request && isAdminPagesOrigin(request));
+  const bearer = pagesRequest
+    ? authorization?.match(/^Bearer\s+([^\s]+)$/i)?.[1] || null
+    : null;
+  const cookie = pagesRequest ? null : cookieValue(requestHeaders.get("cookie"), ADMIN_SESSION_COOKIE);
+  const valid = pagesRequest
+    ? await verifyAdminSession(bearer, "github-pages")
+    : await verifyAdminSession(cookie, "site");
+  if (!valid) return null;
   return { email: "shared-access-key", displayName: "운영 관리자" };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { apiUrl, themeImageUrl } from "@/lib/client-runtime";
 import type { BookingSettingsRecord, PublicDateAvailability, ThemeRecord } from "@/lib/models";
 
 type ReservationSummary = {
@@ -80,7 +81,7 @@ export default function BookingExperience({ initialThemes, initialSettings }: Pr
   const ready = Boolean(selectedTheme && selectedDate && selectedSlot?.status === "available" && name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10 && agreed);
 
   useEffect(() => {
-    fetch("/api/public/bootstrap", { cache: "no-store" })
+    fetch(apiUrl("/api/public/bootstrap"), { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => {
         if (!data.ok) return;
@@ -96,7 +97,7 @@ export default function BookingExperience({ initialThemes, initialSettings }: Pr
     const controller = new AbortController();
     const generation = ++availabilityRequestRef.current;
     queueMicrotask(() => { setLoadingSlots(true); setSlotId(""); });
-    fetch(`/api/public/availability?themeId=${encodeURIComponent(themeId)}&days=${settings.horizonDays}`, { cache: "no-store", signal: controller.signal })
+    fetch(apiUrl(`/api/public/availability?themeId=${encodeURIComponent(themeId)}&days=${settings.horizonDays}`), { cache: "no-store", signal: controller.signal })
       .then((response) => response.json())
       .then((data) => {
         if (!data.ok) throw new Error(data.error?.message || "예약 시간을 불러오지 못했습니다.");
@@ -165,7 +166,7 @@ export default function BookingExperience({ initialThemes, initialSettings }: Pr
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/public/reservations", {
+      const response = await fetch(apiUrl("/api/public/reservations"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -183,7 +184,7 @@ export default function BookingExperience({ initialThemes, initialSettings }: Pr
       requestIdRef.current = newRequestId();
       setReviewing(false);
       setSlotId("");
-      const refresh = await fetch(`/api/public/availability?themeId=${encodeURIComponent(themeId)}&days=${settings.horizonDays}`, { cache: "no-store" });
+      const refresh = await fetch(apiUrl(`/api/public/availability?themeId=${encodeURIComponent(themeId)}&days=${settings.horizonDays}`), { cache: "no-store" });
       const refreshed = await refresh.json();
       if (refreshed.ok) setDates(refreshed.dates);
     } catch (caught) {
@@ -210,7 +211,7 @@ export default function BookingExperience({ initialThemes, initialSettings }: Pr
             <div className="booking-theme-grid">
               {themes.map((theme) => (
                 <button type="button" key={theme.id} className={themeId === theme.id ? "booking-theme selected" : "booking-theme"} onClick={() => selectTheme(theme.id)} aria-pressed={themeId === theme.id}>
-                  <span className={`booking-thumb ${theme.artKey}`} style={theme.imageKey ? { backgroundImage: `url(/api/public/theme-image/${theme.imageKey})` } : undefined} />
+                  <span className={`booking-thumb ${theme.artKey}`} style={theme.imageKey ? { backgroundImage: `url(${themeImageUrl(theme.imageKey)})` } : undefined} />
                   <span><small>{theme.genre}</small><strong>{theme.shortName}</strong><em>{theme.durationMin}분 · {theme.minPeople}–{theme.maxPeople}인</em></span>
                   <i aria-hidden="true" />
                 </button>
@@ -320,12 +321,12 @@ function ManageReservation({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const lookup = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true); setError("");
-    try { const response = await fetch("/api/public/reservations/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingCode, phone }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message); setReservation(data.reservation); } catch (caught) { setError(caught instanceof Error ? caught.message : "예약을 찾지 못했습니다."); } finally { setLoading(false); }
+    try { const response = await fetch(apiUrl("/api/public/reservations/lookup"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingCode, phone }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message); setReservation(data.reservation); } catch (caught) { setError(caught instanceof Error ? caught.message : "예약을 찾지 못했습니다."); } finally { setLoading(false); }
   };
   const cancel = async () => {
     if (!confirm("이 예약을 취소하시겠습니까? 취소된 시간은 다시 예약 가능 상태로 전환됩니다.")) return;
     setLoading(true); setError("");
-    try { const response = await fetch("/api/public/reservations/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingCode, phone }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message); setReservation((current) => current ? { ...current, status: "cancelled" } : null); } catch (caught) { setError(caught instanceof Error ? caught.message : "취소하지 못했습니다."); } finally { setLoading(false); }
+    try { const response = await fetch(apiUrl("/api/public/reservations/cancel"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingCode, phone }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error?.message); setReservation((current) => current ? { ...current, status: "cancelled" } : null); } catch (caught) { setError(caught instanceof Error ? caught.message : "취소하지 못했습니다."); } finally { setLoading(false); }
   };
   return <div className="modal-backdrop" onMouseDown={onClose}><section className="review-modal manage-modal" role="dialog" aria-modal="true" aria-labelledby="manage-title" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={onClose} aria-label="닫기">×</button><p className="modal-kicker">MY RESERVATION</p><h2 id="manage-title">예약 조회·취소</h2>{!reservation ? <form className="lookup-form" onSubmit={lookup}><label>예약번호<input value={bookingCode} onChange={(event) => setBookingCode(event.target.value.toUpperCase().slice(0, 9))} placeholder="CT-XXXXXX" /></label><label>예약자 전화번호<input type="tel" inputMode="numeric" value={phone} onChange={(event) => setPhone(formatPhone(event.target.value))} placeholder="010-0000-0000" /></label>{error && <div className="booking-error">{error}</div>}<button className="button primary" disabled={loading}>{loading ? "조회 중…" : "예약 조회"}</button></form> : <><div className={`reservation-state ${reservation.status}`}>{reservation.status === "cancelled" ? "취소된 예약" : "예약 확정"}</div><div className="booking-code"><span>예약번호</span><strong>{reservation.bookingCode}</strong></div><dl><div><dt>테마</dt><dd>{reservation.themeName}</dd></div><div><dt>일시</dt><dd>{formatDate(reservation.date, true)} {minuteToTime(reservation.startMinute)}</dd></div><div><dt>인원</dt><dd>{reservation.partySize}명</dd></div></dl>{error && <div className="booking-error">{error}</div>}<div className="modal-actions">{reservation.status === "confirmed" && <button className="button danger" onClick={cancel} disabled={loading}>{loading ? "처리 중…" : "예약 취소"}</button>}<button className="button quiet" onClick={() => setReservation(null)}>다른 예약 조회</button></div></>}</section></div>;
 }

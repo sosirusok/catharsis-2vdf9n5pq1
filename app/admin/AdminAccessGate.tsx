@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
+import { apiUrl, publicSiteUrl, saveAdminSessionToken, usesRemoteApi } from "@/lib/client-runtime";
 
-export default function AdminAccessGate() {
+export default function AdminAccessGate({ onAuthenticated }: { onAuthenticated?: () => void }) {
   const [accessKey, setAccessKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -14,9 +14,9 @@ export default function AdminAccessGate() {
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/session", {
+      const response = await fetch(apiUrl("/api/admin/session"), {
         method: "POST",
-        credentials: "same-origin",
+        credentials: usesRemoteApi() ? "omit" : "same-origin",
         headers: {
           "Content-Type": "application/json",
           "X-Catharsis-Admin-Request": "1",
@@ -25,7 +25,9 @@ export default function AdminAccessGate() {
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error?.message || "관리자 키를 확인해 주세요.");
-      window.location.replace("/admin");
+      if (typeof result.sessionToken === "string") saveAdminSessionToken(result.sessionToken);
+      if (onAuthenticated) onAuthenticated();
+      else window.location.replace("/admin");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "관리자 키를 확인해 주세요.");
       setAccessKey("");
@@ -59,7 +61,7 @@ export default function AdminAccessGate() {
             {submitting ? "확인 중…" : "관리 화면 열기"}
           </button>
         </form>
-        <Link href="/">카타르시스 홈페이지</Link>
+        <a href={publicSiteUrl()}>카타르시스 홈페이지</a>
       </section>
     </main>
   );

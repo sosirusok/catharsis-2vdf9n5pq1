@@ -1,19 +1,17 @@
 import { getAdmin } from "@/lib/admin";
 import { json } from "@/lib/booking";
+import { isAdminPagesOrigin, isSameWebOrigin } from "@/lib/request-origin";
 
 export const ADMIN_REQUEST_HEADER = "x-catharsis-admin-request";
 
 export function validAdminMutationRequest(request: Request): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    if (new URL(origin).origin !== new URL(request.url).origin) return false;
-  } catch {
-    return false;
-  }
+  const sameOrigin = isSameWebOrigin(request);
+  const pagesOrigin = isAdminPagesOrigin(request);
+  if (!sameOrigin && !pagesOrigin) return false;
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
+  if (fetchSite === "cross-site" && !pagesOrigin) return false;
+  if (fetchSite && !["same-origin", "cross-site", "none"].includes(fetchSite)) return false;
   return request.headers.get(ADMIN_REQUEST_HEADER) === "1";
 }
 

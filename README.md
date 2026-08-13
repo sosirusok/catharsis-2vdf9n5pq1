@@ -4,8 +4,8 @@
 
 ## 운영 링크
 
-- 고객 사이트: https://catharsis-escape.sosirusok.chatgpt.site
-- 예약·운영 관리자: https://catharsis-escape.sosirusok.chatgpt.site/admin
+- 고객 사이트: https://sosirusok.github.io/catharsis-escape/
+- 예약·운영 관리자: https://sosirusok.github.io/catharsis-2vdf9n5pq1/
 - 네이버 지도: https://map.naver.com/p/entry/place/1626605361
 
 관리자 링크에서는 별도 계정 로그인 없이 관리자 키를 확인합니다. 키와 세션 서명값은 서버 환경에만 보관하며 저장소와 브라우저 코드에는 포함하지 않습니다.
@@ -34,7 +34,7 @@
 - 활성 예약의 슬롯 단위 고유 제약으로 동시 중복 예약 차단
 - 예약자 이름·전화번호 AES-GCM 암호화
 - 전화번호 조회용 HMAC, 요청 속도 제한, 관리자 변경 이력
-- 서버 검증형 관리자 키와 서명된 HttpOnly 세션 쿠키
+- 서버 검증형 관리자 키, 실행 환경별 서명 세션, 최소 범위 CORS 정책
 
 ## 개발
 
@@ -46,11 +46,11 @@
     npm run lint
     npm test
 
-GitHub Actions는 main과 Pull Request에서 코드 검사, 프로덕션 빌드, 기능 테스트를 자동 실행합니다.
+GitHub Actions는 main에서 코드 검사, 프로덕션 빌드, 기능 테스트와 GitHub Pages 배포를 자동 실행합니다.
 
 ## 배포 구조
 
-이 저장소는 전체 운영 소스와 자동 검증 이력을 보관합니다. 실제 예약 API, 관리자 세션, D1 데이터베이스, R2 이미지 저장소는 서버 실행 환경이 필요한 기능이므로 정적 GitHub Pages가 아니라 위 ChatGPT Sites 운영 URL에서 실행됩니다.
+고객 화면과 관리자 화면은 각각 GitHub Pages에 배포됩니다. 예약 API, 관리자 키 검증, D1 데이터베이스와 R2 이미지 저장소는 별도 서버 런타임에서 실행되며 두 GitHub 사이트가 동일한 실시간 예약 데이터를 사용합니다.
 
 ## 기술 구성
 

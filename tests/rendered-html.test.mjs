@@ -205,3 +205,92 @@ test("requires a session and same-origin marker for administrator APIs", async (
   );
   assert.equal(missingOriginMarker.status, 403);
 });
+
+test("serves exact GitHub Pages CORS and audience-bound administrator sessions", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("pages-cors-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const pagesOrigin = "https://sosirusok.github.io";
+
+  const preflight = await worker.fetch(
+    new Request("http://localhost/api/admin/session", {
+      method: "OPTIONS",
+      headers: {
+        origin: pagesOrigin,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type,x-catharsis-admin-request",
+      },
+    }),
+    testEnv(),
+    testContext,
+  );
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), pagesOrigin);
+  assert.match(preflight.headers.get("access-control-allow-headers") ?? "", /Authorization/i);
+
+  const rejectedPreflight = await worker.fetch(
+    new Request("http://localhost/api/public/reservations", {
+      method: "OPTIONS",
+      headers: { origin: "https://example.com", "access-control-request-method": "POST" },
+    }),
+    testEnv(),
+    testContext,
+  );
+  assert.equal(rejectedPreflight.status, 403);
+  assert.equal(rejectedPreflight.headers.get("access-control-allow-origin"), null);
+
+  const session = await worker.fetch(
+    new Request("http://localhost/api/admin/session", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: pagesOrigin,
+        "sec-fetch-site": "cross-site",
+        "x-catharsis-admin-request": "1",
+      },
+      body: JSON.stringify({ accessKey: "test-admin-access-key" }),
+    }),
+    testEnv(),
+    testContext,
+  );
+  assert.equal(session.status, 200);
+  assert.equal(session.headers.get("set-cookie"), null);
+  assert.equal(session.headers.get("access-control-allow-origin"), pagesOrigin);
+  const sessionBody = await session.json();
+  assert.equal(sessionBody.ok, true);
+  assert.match(sessionBody.sessionToken, /^v2\.github-pages\./);
+
+  const settings = await worker.fetch(
+    new Request("http://localhost/api/admin/settings", {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${sessionBody.sessionToken}`,
+        "content-type": "application/json",
+        origin: pagesOrigin,
+        "sec-fetch-site": "cross-site",
+        "x-catharsis-admin-request": "1",
+      },
+      body: JSON.stringify({ horizonDays: 21, leadMinutes: 60, cancelCutoffMinutes: 1440, bookingOpen: true }),
+    }),
+    testEnv(),
+    testContext,
+  );
+  assert.equal(settings.status, 200);
+  assert.equal(settings.headers.get("access-control-allow-origin"), pagesOrigin);
+
+  const wrongAudience = await worker.fetch(
+    new Request("http://localhost/api/admin/settings", {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${sessionBody.sessionToken}`,
+        "content-type": "application/json",
+        origin: "http://localhost",
+        "x-catharsis-admin-request": "1",
+      },
+      body: "{}",
+    }),
+    testEnv(),
+    testContext,
+  );
+  assert.equal(wrongAudience.status, 401);
+});

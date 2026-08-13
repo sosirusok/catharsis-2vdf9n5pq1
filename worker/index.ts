@@ -24,6 +24,41 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+const GITHUB_PAGES_ORIGIN = "https://sosirusok.github.io";
+
+function apiCorsProfile(pathname: string) {
+  if (pathname.startsWith("/api/public/")) {
+    return { methods: "GET, POST, OPTIONS", headers: "Content-Type" };
+  }
+  if (pathname.startsWith("/api/admin/")) {
+    return {
+      methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+      headers: "Authorization, Content-Type, X-Catharsis-Admin-Request",
+    };
+  }
+  return null;
+}
+
+function corsHeaders(profile: { methods: string; headers: string }) {
+  return {
+    "Access-Control-Allow-Origin": GITHUB_PAGES_ORIGIN,
+    "Access-Control-Allow-Methods": profile.methods,
+    "Access-Control-Allow-Headers": profile.headers,
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+function withApiCors(response: Response, profile: { methods: string; headers: string }) {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(corsHeaders(profile))) headers.set(name, value);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -34,6 +69,15 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     (globalThis as typeof globalThis & { __SITES_ENV__?: Env }).__SITES_ENV__ = env;
     const url = new URL(request.url);
+    const corsProfile = apiCorsProfile(url.pathname);
+    const requestOrigin = request.headers.get("origin");
+
+    if (request.method === "OPTIONS" && corsProfile) {
+      if (requestOrigin !== GITHUB_PAGES_ORIGIN) {
+        return new Response(null, { status: 403 });
+      }
+      return new Response(null, { status: 204, headers: corsHeaders(corsProfile) });
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
@@ -46,7 +90,11 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const response = await handler.fetch(request, env, ctx);
+    if (corsProfile && requestOrigin === GITHUB_PAGES_ORIGIN) {
+      return withApiCors(response, corsProfile);
+    }
+    return response;
   },
 };
 
