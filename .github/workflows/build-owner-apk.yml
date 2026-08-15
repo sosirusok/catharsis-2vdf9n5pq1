@@ -47,6 +47,10 @@ jobs:
       - name: Run unit tests and build APK
         env:
           OWNER_VERSION_CODE: ${{ github.run_number }}
+          OWNER_FIREBASE_APP_ID: ${{ vars.OWNER_FIREBASE_APP_ID }}
+          OWNER_FIREBASE_PROJECT_ID: ${{ vars.OWNER_FIREBASE_PROJECT_ID }}
+          OWNER_FIREBASE_SENDER_ID: ${{ vars.OWNER_FIREBASE_SENDER_ID }}
+          OWNER_FIREBASE_API_KEY: ${{ vars.OWNER_FIREBASE_API_KEY }}
         run: gradle --no-daemon testDebugUnitTest assembleRelease
 
       - name: Prepare install file

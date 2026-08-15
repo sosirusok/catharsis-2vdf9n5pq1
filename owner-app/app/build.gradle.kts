@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+fun configuredValue(name: String): String =
+    providers.environmentVariable(name).orElse(providers.gradleProperty(name)).orNull?.trim().orEmpty()
+
+fun quoted(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "kr.co.catharsis.owner"
     compileSdk = 35
@@ -23,6 +29,10 @@ android {
             "API_BASE",
             "\"https://catharsis-escape.sosirusok.chatgpt.site\"",
         )
+        buildConfigField("String", "FIREBASE_APP_ID", quoted(configuredValue("OWNER_FIREBASE_APP_ID")))
+        buildConfigField("String", "FIREBASE_PROJECT_ID", quoted(configuredValue("OWNER_FIREBASE_PROJECT_ID")))
+        buildConfigField("String", "FIREBASE_SENDER_ID", quoted(configuredValue("OWNER_FIREBASE_SENDER_ID")))
+        buildConfigField("String", "FIREBASE_API_KEY", quoted(configuredValue("OWNER_FIREBASE_API_KEY")))
     }
 
     buildTypes {
@@ -56,8 +66,10 @@ android {
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    val firebaseBom = platform("com.google.firebase:firebase-bom:34.17.0")
 
     implementation(composeBom)
+    implementation(firebaseBom)
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.15.0")
@@ -71,7 +83,10 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("com.google.firebase:firebase-installations")
+    implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

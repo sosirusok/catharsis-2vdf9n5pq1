@@ -6,8 +6,8 @@
 
 - 최초 실행 시 운영 키와 장치 이름으로 한 번만 연결합니다.
 - 운영 키는 저장하지 않으며 서버가 발급한 장치 토큰만 Android Keystore로 암호화해 보관합니다.
-- 앱 사용 중에는 30초마다 새 예약을 확인합니다.
-- 백그라운드에서는 WorkManager가 주기적으로 확인하고, 부팅 및 앱 업데이트 뒤 작업을 다시 등록합니다.
+- Firebase Cloud Messaging으로 새 예약·취소 신호를 즉시 받고 인증된 서버에서 상세 내용을 동기화합니다.
+- 푸시에는 고객명·전화번호·예약번호가 포함되지 않으며, 백그라운드 WorkManager와 30초 연결은 누락 복구용으로 작동합니다.
 - 예약 이력은 SQLite에 저장되며 최신순 목록, 읽음 상태, 상세 정보와 예약번호 복사를 지원합니다.
 - Android 13 이상에서는 처음 연결할 때 알림 권한을 요청합니다.
 
@@ -18,6 +18,15 @@
 - Android SDK 35 및 Build Tools 35.0.0
 
 `owner-app` 폴더를 프로젝트로 열고 Gradle 8.9를 선택한 뒤 `app` 구성을 실행합니다.
+
+Firebase Android 앱의 공개 설정값은 다음 Gradle 속성 또는 환경변수로 전달합니다. 패키지명은 `kr.co.catharsis.owner`입니다.
+
+- `OWNER_FIREBASE_APP_ID`
+- `OWNER_FIREBASE_PROJECT_ID`
+- `OWNER_FIREBASE_SENDER_ID`
+- `OWNER_FIREBASE_API_KEY`
+
+서버 서비스 계정의 개인키는 Android 프로젝트나 GitHub에 넣지 않습니다.
 
 ## 자동 빌드
 

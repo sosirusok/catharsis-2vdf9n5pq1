@@ -20,7 +20,7 @@ class BootReceiver : BroadcastReceiver() {
 
         // Android 15 blocks a data-sync foreground service launched directly from boot.
         // WorkManager restores background checking there; opening the app resumes 30-second polling.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        if (!application.repository.hasPushRegistration() && Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, AlertPollingService::class.java),

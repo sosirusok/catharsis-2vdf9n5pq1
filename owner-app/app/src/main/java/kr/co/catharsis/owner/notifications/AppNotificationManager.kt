@@ -96,6 +96,35 @@ class AppNotificationManager(
         NotificationManagerCompat.from(context).notify(notificationId(alert.id), notification)
     }
 
+    fun showPushSignal(
+        alertId: Long,
+        kind: String,
+    ) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val changed = kind.contains("cancel", ignoreCase = true) || kind.contains("refund", ignoreCase = true)
+        val notification =
+            NotificationCompat
+                .Builder(context, BOOKINGS_CHANNEL)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(if (changed) "예약 상태가 변경되었습니다" else "새 예약이 들어왔습니다")
+                .setContentText("앱에서 예약 내용을 확인해 주세요.")
+                .setContentIntent(mainPendingIntent(alertId))
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+        NotificationManagerCompat.from(context).notify(notificationId(alertId), notification)
+    }
+
     private fun mainPendingIntent(alertId: Long): PendingIntent {
         val intent =
             Intent(context, MainActivity::class.java).apply {

@@ -54,6 +54,18 @@ class OwnerApi(
         )
     }
 
+    fun registerPushInstallation(
+        token: String,
+        installationId: String,
+    ) {
+        request(
+            method = "PATCH",
+            path = "/api/owner-app/device",
+            body = JSONObject().put("installationId", installationId).toString(),
+            token = token,
+        )
+    }
+
     private fun request(
         method: String,
         path: String,

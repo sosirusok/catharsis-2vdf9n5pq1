@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(isPaired) {
                     if (isPaired) {
                         SyncScheduler.schedule(context)
+                        SyncScheduler.registerPush(context)
                         viewModel.refresh()
                         if (
                             Build.VERSION.SDK_INT >= 33 &&
@@ -74,7 +75,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startFastPollingIfPaired() {
-        if (!(application as OwnerApplication).repository.hasDeviceToken()) return
+        val repository = (application as OwnerApplication).repository
+        if (!repository.hasDeviceToken()) return
+        if (repository.hasPushRegistration()) {
+            stopService(Intent(this, AlertPollingService::class.java))
+            return
+        }
         ContextCompat.startForegroundService(this, Intent(this, AlertPollingService::class.java))
     }
 

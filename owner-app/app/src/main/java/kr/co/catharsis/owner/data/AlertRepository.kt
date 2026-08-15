@@ -2,6 +2,7 @@ package kr.co.catharsis.owner.data
 
 import android.content.Context
 import android.content.Intent
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,7 +10,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import kr.co.catharsis.owner.notifications.AppNotificationManager
+import kr.co.catharsis.owner.push.FirebaseBootstrap
 import kr.co.catharsis.owner.security.KeystoreTokenStore
 import kr.co.catharsis.owner.sync.AlertPollingService
 import kr.co.catharsis.owner.sync.SyncScheduler
@@ -40,6 +43,9 @@ class AlertRepository(
 
     fun hasDeviceToken(): Boolean = tokenStore.get() != null
 
+    fun hasPushRegistration(): Boolean =
+        FirebaseBootstrap.isConfigured && preferences.getBoolean(KEY_PUSH_REGISTERED, false)
+
     fun loadLocalHistory() {
         _alerts.value = database.all()
     }
@@ -54,16 +60,37 @@ class AlertRepository(
         try {
             val token = api.pair(accessKey.trim(), deviceName.trim())
             tokenStore.save(token)
-            preferences.edit().putBoolean(KEY_INITIAL_SYNC, false).apply()
+            preferences.edit().putBoolean(KEY_INITIAL_SYNC, false).putBoolean(KEY_PUSH_REGISTERED, false).apply()
             _isPaired.value = true
             _connection.value = ConnectionState.Idle
             SyncScheduler.schedule(appContext)
+            SyncScheduler.registerPush(appContext)
             sync(notifyNew = false)
         } catch (error: Throwable) {
             _connection.value = ConnectionState.Error(error.userMessage())
             throw error
         }
     }
+
+    suspend fun registerPushInstallation(installationId: String): SyncOutcome =
+        withContext(Dispatchers.IO) {
+            val token = tokenStore.get() ?: return@withContext SyncOutcome.UNPAIRED
+            try {
+                api.registerPushInstallation(token, installationId)
+                preferences.edit().putBoolean(KEY_PUSH_REGISTERED, true).apply()
+                appContext.stopService(Intent(appContext, AlertPollingService::class.java))
+                SyncOutcome.SUCCESS
+            } catch (error: ApiException) {
+                if (error.statusCode == 401 || error.statusCode == 403) {
+                    invalidatePairing()
+                    SyncOutcome.UNPAIRED
+                } else {
+                    SyncOutcome.RETRY
+                }
+            } catch (_: Throwable) {
+                SyncOutcome.RETRY
+            }
+        }
 
     suspend fun sync(notifyNew: Boolean = true): SyncOutcome =
         withContext(Dispatchers.IO) {
@@ -135,6 +162,13 @@ class AlertRepository(
     suspend fun disconnect() =
         withContext(Dispatchers.IO) {
             tokenStore.get()?.let { token -> runCatching { api.unpair(token) } }
+            if (FirebaseBootstrap.isConfigured) {
+                try {
+                    FirebaseMessaging.getInstance().unregister().await()
+                } catch (_: Throwable) {
+                    // The server-side device revocation above is authoritative.
+                }
+            }
             tokenStore.clear()
             preferences.edit().clear().apply()
             database.clear()
@@ -164,6 +198,7 @@ class AlertRepository(
     companion object {
         private const val SYNC_PREFERENCES = "owner_sync_state"
         private const val KEY_INITIAL_SYNC = "initial_sync_complete"
+        private const val KEY_PUSH_REGISTERED = "push_registration_complete"
         private const val PAGE_SIZE = 100
         private const val MAX_PAGES_PER_SYNC = 5
         private const val MAX_NOTIFICATIONS_PER_SYNC = 8
